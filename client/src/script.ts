@@ -56,16 +56,54 @@ addEventListener('DOMContentLoaded', () => {
     },
   };
 
+  const mac = peek.os === 'darwin';
+  const webview = peek.ctx === 'webview';
+
   if (peek.theme) body.setAttribute('data-theme', peek.theme);
-  if (peek.ctx === 'webview') zoom.init();
+  if (webview) zoom.init();
+
+  const copy = () => document.execCommand('copy');
+
+  const menu = document.getElementById('peek-menu') as HTMLDivElement;
+  const menuCopy = document.getElementById('peek-menu-copy') as HTMLButtonElement;
+  const hideMenu = () => {
+    menu.hidden = true;
+  };
+
+  // webview has no context menu with Copy, so show our own one
+  if (webview) {
+    (document.getElementById('peek-menu-copy-shortcut') as HTMLSpanElement).textContent = mac
+      ? '⌘C'
+      : 'Ctrl+C';
+
+    document.addEventListener('contextmenu', (event: MouseEvent) => {
+      event.preventDefault();
+      menuCopy.disabled = !getSelection()?.toString();
+      menu.hidden = false;
+      menu.style.left = `${Math.min(event.clientX, window.innerWidth - menu.offsetWidth)}px`;
+      menu.style.top = `${Math.min(event.clientY, window.innerHeight - menu.offsetHeight)}px`;
+    });
+
+    // keep the selection when clicking the menu
+    menu.addEventListener('mousedown', (event) => event.preventDefault());
+    menuCopy.addEventListener('click', () => {
+      copy();
+      hideMenu();
+    });
+
+    document.addEventListener('mousedown', (event) => {
+      if (!menu.contains(event.target as Node)) hideMenu();
+    });
+    addEventListener('blur', hideMenu);
+    addEventListener('resize', hideMenu);
+    addEventListener('scroll', hideMenu);
+  }
 
   document.addEventListener('keydown', (event: KeyboardEvent) => {
-    const mac = peek.os === 'darwin';
-    if (peek.ctx === 'webview' && event.key === 'w' && (mac ? event.metaKey : event.ctrlKey)) {
-      event.preventDefault();
-      Reflect.get(window, '_close')();
-      return;
-    }
+    // with Cmd on macOS, Ctrl on others
+    const command: Record<string, () => void> = webview
+      ? { 'w': () => Reflect.get(window, '_close')(), 'c': copy }
+      : {};
     const nav: Record<string, () => void> = mac
       ? { '[': back, ']': forward }
       : { 'ArrowLeft': back, 'ArrowRight': forward };
@@ -93,9 +131,11 @@ addEventListener('DOMContentLoaded', () => {
       'G': () => {
         window.scrollTo({ top: document.body.scrollHeight });
       },
+      ...(webview ? { 'Copy': copy, 'Escape': hideMenu } : {}),
     };
-    const action = ((mac ? event.metaKey : event.altKey) && nav[event.key]) ||
-      (event.ctrlKey && peek.ctx === 'webview' ? ctrl[event.key] : plain[event.key]);
+    const action = ((mac ? event.metaKey : event.ctrlKey) && command[event.key]) ||
+      ((mac ? event.metaKey : event.altKey) && nav[event.key]) ||
+      (event.ctrlKey && webview ? ctrl[event.key] : plain[event.key]);
     if (action) {
       event.preventDefault();
       action();
