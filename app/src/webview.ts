@@ -7,10 +7,12 @@ const webview = new Webview();
 
 webview.title = 'Peek preview';
 webview.bind('_log', console.log);
+webview.bind('_close', () => Deno.exit());
 webview.init(`
   window.peek = {};
   window.peek.theme = "${theme}"
   window.peek.serverUrl = "${serverUrl}"
+  window.peek.os = "${Deno.build.os}"
 `);
 
 webview.navigate(url);

@@ -55,6 +55,14 @@ addEventListener('DOMContentLoaded', () => {
   if (peek.ctx === 'webview') zoom.init();
 
   document.addEventListener('keydown', (event: KeyboardEvent) => {
+    if (
+      peek.ctx === 'webview' && event.key === 'w' &&
+      (peek.os === 'darwin' ? event.metaKey : event.ctrlKey)
+    ) {
+      event.preventDefault();
+      Reflect.get(window, '_close')();
+      return;
+    }
     const ctrl: Record<string, () => void> = {
       '=': zoom.up.bind(zoom),
       '-': zoom.down.bind(zoom),

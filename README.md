@@ -98,6 +98,7 @@ The following keybinds are active when preview window is focused:
 | d | scroll down half a page |
 | g | scroll to top           |
 | G | scroll to bottom        |
+| Cmd-w (macOS) / Ctrl-w (Linux) | close preview window (webview only) |
 
 ### :mag: Preview window
 

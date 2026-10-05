@@ -14,6 +14,7 @@ interface Config {
   theme?: string;
   serverUrl?: string;
   ctx?: string;
+  os?: string;
 }
 
 export function getInjectConfig(): Config {
