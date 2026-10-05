@@ -105,6 +105,7 @@ The following keybinds are active when preview window is focused:
 
 Click a link to a local file to open it in Neovim and preview it.
 If the file is not found relative to the previewed file, it is searched in `'path'` with `'suffixesadd'`, like `gf`.
+Click an `http(s)` URL to open it in your browser with `open` (macOS) or `xdg-open` (Linux).
 Links to files whose filetype is not listed in the `filetype` option are not opened.
 Use the back / forward buttons in the toolbar or the mouse side buttons to move between previewed files.
 In the webview, right-click to show a menu to copy the selected text.

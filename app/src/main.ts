@@ -16,13 +16,36 @@ const version = Deno.version;
 logger.info(`DENO_ENV: ${DENO_ENV}`, ...Deno.args);
 logger.info(`deno: ${version.deno} v8: ${version.v8} typescript: ${version.typescript}`);
 
+async function openUrl(url: string) {
+  const command = Deno.build.os === 'darwin' ? 'open' : 'xdg-open';
+  const { code } = await new Deno.Command(command, {
+    args: [url],
+    stdin: 'null',
+    stdout: 'null',
+    stderr: 'null',
+  }).output();
+  if (code !== 0) throw new Error(`${command} exited with code ${code}`);
+}
+
 async function init(socket: WebSocket) {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
 
-  // relay messages from the client to Neovim, one JSON per line
   socket.onmessage = (event) => {
-    Deno.stdout.writeSync(encoder.encode(JSON.stringify(JSON.parse(event.data)) + '\n'));
+    const data = JSON.parse(event.data);
+
+    if (data.action === 'url') {
+      return void openUrl(data.url).catch((e) => {
+        logger.error(e.message);
+        socket.send(encoder.encode(JSON.stringify({
+          action: 'notify',
+          message: `Failed to open ${data.url}: ${e.message}`,
+        })));
+      });
+    }
+
+    // relay other messages to Neovim, one JSON per line
+    Deno.stdout.writeSync(encoder.encode(JSON.stringify(data) + '\n'));
   };
 
   if (DENO_ENV === 'development') {

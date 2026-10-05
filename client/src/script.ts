@@ -220,7 +220,13 @@ addEventListener('DOMContentLoaded', () => {
 
   markdownBody.addEventListener('click', (event) => {
     const href = (event.target as Element).closest('a[data-href]')?.getAttribute('data-href');
-    if (!href || href.startsWith('#') || /^[a-z][a-z\d+.-]+:/i.test(href)) return;
+    if (!href || href.startsWith('#')) return;
+    if (/^https?:\/\//i.test(href)) {
+      event.preventDefault();
+      socket.send(JSON.stringify({ action: 'url', url: href }));
+      return;
+    }
+    if (/^[a-z][a-z\d+.-]+:/i.test(href)) return;
     event.preventDefault();
     socket.send(JSON.stringify({
       action: 'open',
