@@ -45,13 +45,25 @@ function module.setup()
   }, args)
 end
 
-function module.init(on_exit)
+function module.init(on_exit, on_message)
   if channel then
     return
   end
 
+  local pending = ''
+
   channel = vim.fn.jobstart(cmd, {
     cwd = cwd,
+    on_stdout = function(_, data)
+      data[1] = pending .. data[1]
+      pending = table.remove(data)
+      for _, line in ipairs(data) do
+        local ok, msg = pcall(vim.json.decode, line)
+        if ok and type(msg) == 'table' then
+          on_message(msg)
+        end
+      end
+    end,
     stderr_buffered = true,
     on_stderr = function(_, err)
       vim.fn.jobstop(channel)
@@ -80,6 +92,10 @@ function module.init(on_exit)
 
   module.base = function(path)
     chansend(channel, message({ 'base', path }))
+  end
+
+  module.notify = function(text)
+    chansend(channel, message({ 'notify', text }))
   end
 end
 

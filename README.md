@@ -100,6 +100,9 @@ The following keybinds are active when preview window is focused:
 | G | scroll to bottom        |
 | Cmd-w (macOS) / Ctrl-w (Linux) | close preview window (webview only) |
 
+Click a link to a local file to open it in Neovim and preview it.
+Links to files whose filetype is not listed in the `filetype` option are not opened.
+
 ### :mag: Preview window
 
 Use your window manager to set preview window properties. Window title is `Peek preview`.

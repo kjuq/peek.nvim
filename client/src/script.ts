@@ -16,12 +16,22 @@ addEventListener('DOMContentLoaded', () => {
   let blocks: HTMLElement[][] | undefined;
   let scroll: { line: number } | undefined;
 
+  const label = document.getElementById('peek-label') as HTMLDivElement;
+
+  function showLabel(text: string, duration: number) {
+    label.textContent = text;
+    label.animate([
+      { opacity: 1 },
+      { opacity: 1, offset: 0.75 },
+      { opacity: 0 },
+    ], { duration });
+  }
+
   const zoom = {
     level: 100,
     zoomMin: 50,
     zoomMax: 250,
     zoomStep: 10,
-    zoomLabel: document.getElementById('peek-zoom-label') as HTMLDivElement,
     init() {
       this.level = Number(localStorage.getItem('zoom-level')) || this.level;
       this.update(this.level === 100);
@@ -42,12 +52,7 @@ addEventListener('DOMContentLoaded', () => {
       localStorage.setItem('zoom-level', String(this.level));
       markdownBody.style.setProperty('font-size', `${this.level}%`);
       if (silent) return;
-      this.zoomLabel.textContent = `${this.level}%`;
-      this.zoomLabel.animate([
-        { opacity: 1 },
-        { opacity: 1, offset: 0.75 },
-        { opacity: 0 },
-      ], { duration: 1000 });
+      showLabel(`${this.level}%`, 1000);
     },
   };
 
@@ -142,10 +147,23 @@ addEventListener('DOMContentLoaded', () => {
       case 'base':
         base.href = data.base;
         break;
+      case 'notify':
+        showLabel(data.message, 3000);
+        break;
       default:
         break;
     }
   };
+
+  markdownBody.addEventListener('click', (event) => {
+    const href = (event.target as Element).closest('a[data-href]')?.getAttribute('data-href');
+    if (!href || href.startsWith('#') || /^[a-z][a-z\d+.-]+:/i.test(href)) return;
+    event.preventDefault();
+    socket.send(JSON.stringify({
+      action: 'open',
+      path: decodeURIComponent(href.replace(/[?#].*$/, '')),
+    }));
+  });
 
   const onPreview = (() => {
     mermaid.init();

@@ -17,12 +17,22 @@ logger.info(`DENO_ENV: ${DENO_ENV}`, ...Deno.args);
 logger.info(`deno: ${version.deno} v8: ${version.v8} typescript: ${version.typescript}`);
 
 async function init(socket: WebSocket) {
+  const encoder = new TextEncoder();
+  const decoder = new TextDecoder();
+
+  socket.onmessage = (event) => {
+    const data = JSON.parse(event.data);
+
+    if (data.action === 'open') {
+      Deno.stdout.writeSync(
+        encoder.encode(JSON.stringify({ action: 'open', path: data.path }) + '\n'),
+      );
+    }
+  };
+
   if (DENO_ENV === 'development') {
     return void (await import(join(__dirname, 'ipc_dev.ts'))).default(socket);
   }
-
-  const encoder = new TextEncoder();
-  const decoder = new TextDecoder();
 
   const generator = readChunks(Deno.stdin);
 
@@ -53,6 +63,13 @@ async function init(socket: WebSocket) {
           socket.send(encoder.encode(JSON.stringify({
             action,
             base: normalize(decoder.decode((await generator.next()).value!) + '/'),
+          })));
+          break;
+        }
+        case 'notify': {
+          socket.send(encoder.encode(JSON.stringify({
+            action,
+            message: decoder.decode((await generator.next()).value!),
           })));
           break;
         }

@@ -48,6 +48,7 @@ md.renderer.rules.link_open = (tokens, idx, options) => {
     token.attrSet('onclick', `location.hash='${href}'`);
   }
 
+  if (href) token.attrSet('data-href', href);
   token.attrSet('href', 'javascript:return');
 
   return md.renderer.renderToken(tokens, idx, options);

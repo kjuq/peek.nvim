@@ -11,19 +11,62 @@ local line = vim.fn.line
 
 local module = {}
 
-local augroup, throttle_at, throttle_time, initialized
+local augroup, throttle_at, throttle_time, initialized, preview_bufnr
 
 local function get_buf_content(bufnr)
   return concat(nvim_buf_get_lines(bufnr, 0, -1, false), '\n'):gsub('%s*$', '')
 end
 
-local function open(bufnr)
+local function get_buf_dir(bufnr)
+  return vim.fn.fnamemodify(vim.uri_to_fname(vim.uri_from_bufnr(bufnr)), ':p:h')
+end
+
+local open
+
+local function on_message(msg)
+  if msg.action ~= 'open' or type(msg.path) ~= 'string' or not preview_bufnr then
+    return
+  end
+
+  local path = msg.path
+  if path:sub(1, 1) ~= '/' then
+    path = get_buf_dir(preview_bufnr) .. '/' .. path
+  end
+  path = vim.fn.simplify(path)
+
+  if vim.fn.filereadable(path) == 0 then
+    return app.notify('File "' .. path .. '" not found')
+  end
+
+  local filetype = vim.filetype.match({ filename = path })
+  if not vim.tbl_contains(config.get('filetype'), filetype) then
+    return app.notify('File type "' .. (filetype or 'unknown') .. '" is not supported')
+  end
+
+  local winid = vim.fn.bufwinid(preview_bufnr)
+  local ok, result = pcall(vim.api.nvim_win_call, winid ~= -1 and winid or 0, function()
+    vim.cmd.edit(vim.fn.fnameescape(path))
+    return vim.api.nvim_get_current_buf()
+  end)
+
+  if not ok then
+    return vim.api.nvim_notify('Peek error: ' .. result, vim.log.levels.ERROR, {})
+  end
+
+  -- with auto_load, BufEnter has already switched the preview
+  if result ~= preview_bufnr then
+    open(result)
+  end
+end
+
+function open(bufnr)
   augroup = nvim_create_augroup('PeekActiveAugroup', { clear = true })
+  preview_bufnr = bufnr
 
   app.init(function()
     augroup = nvim_del_augroup_by_id(augroup)
-  end)
-  app.base(vim.fn.fnamemodify(vim.uri_to_fname(vim.uri_from_bufnr(bufnr)), ':p:h'))
+  end, on_message)
+  app.base(get_buf_dir(bufnr))
   app.show(get_buf_content(bufnr))
   app.scroll(line('.'))
 
