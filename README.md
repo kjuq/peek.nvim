@@ -103,6 +103,7 @@ The following keybinds are active when preview window is focused:
 | Cmd-] (macOS) / Alt-→ (Linux) | go forward to the next file |
 
 Click a link to a local file to open it in Neovim and preview it.
+If the file is not found relative to the previewed file, it is searched in `'path'` with `'suffixesadd'`, like `gf`.
 Links to files whose filetype is not listed in the `filetype` option are not opened.
 Use the back / forward buttons in the toolbar or the mouse side buttons to move between previewed files.
 

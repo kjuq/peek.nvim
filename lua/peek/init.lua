@@ -58,14 +58,28 @@ local function edit(path)
   return true
 end
 
-local function open_link(path)
-  if path:sub(1, 1) ~= '/' then
-    path = get_buf_dir(preview_bufnr) .. '/' .. path
+-- find the linked file like gf: relative to the previewed file first, then in 'path'
+local function resolve_link(link)
+  local names = { link:sub(1, 1) == '/' and link or get_buf_dir(preview_bufnr) .. '/' .. link }
+  if not link:match('^%.%.?/') then
+    table.insert(names, (link:gsub('^/', '')))
   end
-  path = vim.fn.simplify(path)
 
-  if vim.fn.filereadable(path) == 0 then
-    return app.notify('File "' .. path .. '" not found')
+  return vim.api.nvim_buf_call(preview_bufnr, function()
+    for _, name in ipairs(names) do
+      local found = vim.fn.findfile(name)
+      if found ~= '' then
+        return vim.fn.simplify(vim.fn.fnamemodify(found, ':p'))
+      end
+    end
+  end)
+end
+
+local function open_link(link)
+  local path = resolve_link(link)
+
+  if not path then
+    return app.notify('File "' .. link .. '" not found')
   end
 
   local filetype = vim.filetype.match({ filename = path })
