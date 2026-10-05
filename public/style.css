@@ -112,7 +112,6 @@ body::-webkit-scrollbar-thumb {
 .markdown-body {
   box-sizing: border-box;
   min-width: 200px;
-  max-width: 980px;
   margin: 0 auto;
   padding: 45px;
   min-height: calc(100vh - var(--peek-toolbar-height));
