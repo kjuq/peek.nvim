@@ -20,14 +20,9 @@ async function init(socket: WebSocket) {
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
 
+  // relay messages from the client to Neovim, one JSON per line
   socket.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-
-    if (data.action === 'open') {
-      Deno.stdout.writeSync(
-        encoder.encode(JSON.stringify({ action: 'open', path: data.path }) + '\n'),
-      );
-    }
+    Deno.stdout.writeSync(encoder.encode(JSON.stringify(JSON.parse(event.data)) + '\n'));
   };
 
   if (DENO_ENV === 'development') {
@@ -70,6 +65,13 @@ async function init(socket: WebSocket) {
           socket.send(encoder.encode(JSON.stringify({
             action,
             message: decoder.decode((await generator.next()).value!),
+          })));
+          break;
+        }
+        case 'history': {
+          socket.send(encoder.encode(JSON.stringify({
+            action,
+            ...JSON.parse(decoder.decode((await generator.next()).value!)),
           })));
           break;
         }
@@ -143,7 +145,7 @@ async function init(socket: WebSocket) {
     const serverUrl = `${hostname.replace('0.0.0.0', 'localhost')}:${port}`;
     logger.info(`listening on ${serverUrl}`);
     const url = new URL(`http://${serverUrl}`);
-    const searchParams = new URLSearchParams({ theme: __args.theme });
+    const searchParams = new URLSearchParams({ theme: __args.theme, os: Deno.build.os });
     url.search = searchParams.toString();
 
     open(url.href, { app: app !== 'browser' && app })

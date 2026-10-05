@@ -1,5 +1,21 @@
+:root {
+  --peek-toolbar-height: 32px;
+}
+[data-theme='dark'] {
+  --peek-toolbar-bg: #161b22;
+  --peek-toolbar-border: #30363d;
+  --peek-toolbar-fg: #e6edf3;
+  --peek-toolbar-hover: rgba(110, 118, 129, 0.4);
+}
+[data-theme='light'] {
+  --peek-toolbar-bg: #f6f8fa;
+  --peek-toolbar-border: #d0d7de;
+  --peek-toolbar-fg: #1f2328;
+  --peek-toolbar-hover: rgba(175, 184, 193, 0.4);
+}
 html {
   background: #333;
+  scroll-padding-top: var(--peek-toolbar-height);
 }
 body::-webkit-scrollbar {
   width: 4px;
@@ -12,7 +28,49 @@ body::-webkit-scrollbar-thumb {
 }
 .peek-body {
   margin: 0;
+  padding: var(--peek-toolbar-height) 0 0;
+}
+#peek-toolbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--peek-toolbar-height);
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--peek-toolbar-border);
+  background-color: var(--peek-toolbar-bg);
+  z-index: 9998;
+}
+.peek-toolbar-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
   padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--peek-toolbar-fg);
+  cursor: pointer;
+}
+.peek-toolbar-button:hover:not(:disabled) {
+  background-color: var(--peek-toolbar-hover);
+}
+.peek-toolbar-button:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+.peek-toolbar-button svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .markdown-body {
   box-sizing: border-box;
@@ -20,7 +78,7 @@ body::-webkit-scrollbar-thumb {
   max-width: 980px;
   margin: 0 auto;
   padding: 45px;
-  min-height: 100vh;
+  min-height: calc(100vh - var(--peek-toolbar-height));
   overflow-x: hidden;
 }
 @media (max-width: 767px) {
@@ -86,7 +144,7 @@ div[data-graph='mermaid']:has(> .peek-loader) {
 }
 #peek-label {
   position: fixed;
-  top: 30px;
+  top: calc(var(--peek-toolbar-height) + 16px);
   right: 30px;
   padding: 10px;
   opacity: 0;

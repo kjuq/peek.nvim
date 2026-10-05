@@ -13,6 +13,9 @@ local module = {}
 
 local augroup, throttle_at, throttle_time, initialized, preview_bufnr
 
+-- paths of previewed files, history[history_index] is the one being previewed
+local history, history_index = {}, 0
+
 local function get_buf_content(bufnr)
   return concat(nvim_buf_get_lines(bufnr, 0, -1, false), '\n'):gsub('%s*$', '')
 end
@@ -23,12 +26,39 @@ end
 
 local open
 
-local function on_message(msg)
-  if msg.action ~= 'open' or type(msg.path) ~= 'string' or not preview_bufnr then
-    return
+local function push_history(path)
+  if path ~= '' and history[history_index] ~= path then
+    for i = #history, history_index + 1, -1 do
+      history[i] = nil
+    end
+    history_index = history_index + 1
+    history[history_index] = path
+  end
+  app.history(history_index > 1, history_index < #history)
+end
+
+-- edit path in the window showing the previewed buffer and preview it
+local function edit(path)
+  local winid = vim.fn.bufwinid(preview_bufnr)
+  local ok, result = pcall(vim.api.nvim_win_call, winid ~= -1 and winid or 0, function()
+    vim.cmd.edit(vim.fn.fnameescape(path))
+    return vim.api.nvim_get_current_buf()
+  end)
+
+  if not ok then
+    vim.api.nvim_notify('Peek error: ' .. result, vim.log.levels.ERROR, {})
+    return false
   end
 
-  local path = msg.path
+  -- with auto_load, BufEnter has already switched the preview
+  if result ~= preview_bufnr then
+    open(result)
+  end
+
+  return true
+end
+
+local function open_link(path)
   if path:sub(1, 1) ~= '/' then
     path = get_buf_dir(preview_bufnr) .. '/' .. path
   end
@@ -43,19 +73,34 @@ local function on_message(msg)
     return app.notify('File type "' .. (filetype or 'unknown') .. '" is not supported')
   end
 
-  local winid = vim.fn.bufwinid(preview_bufnr)
-  local ok, result = pcall(vim.api.nvim_win_call, winid ~= -1 and winid or 0, function()
-    vim.cmd.edit(vim.fn.fnameescape(path))
-    return vim.api.nvim_get_current_buf()
-  end)
+  edit(path)
+end
 
-  if not ok then
-    return vim.api.nvim_notify('Peek error: ' .. result, vim.log.levels.ERROR, {})
+local function go(offset)
+  local index = history_index + offset
+  if not history[index] then
+    return
   end
 
-  -- with auto_load, BufEnter has already switched the preview
-  if result ~= preview_bufnr then
-    open(result)
+  -- move the index first so that open() does not push the path again
+  local prev_index = history_index
+  history_index = index
+  if not edit(history[index]) then
+    history_index = prev_index
+  end
+end
+
+local function on_message(msg)
+  if not preview_bufnr then
+    return
+  end
+
+  if msg.action == 'open' and type(msg.path) == 'string' then
+    open_link(msg.path)
+  elseif msg.action == 'back' then
+    go(-1)
+  elseif msg.action == 'forward' then
+    go(1)
   end
 end
 
@@ -65,10 +110,12 @@ function open(bufnr)
 
   app.init(function()
     augroup = nvim_del_augroup_by_id(augroup)
+    history, history_index = {}, 0
   end, on_message)
   app.base(get_buf_dir(bufnr))
   app.show(get_buf_content(bufnr))
   app.scroll(line('.'))
+  push_history(vim.api.nvim_buf_get_name(bufnr))
 
   local show_throttled = throttle(function(content)
     if augroup then

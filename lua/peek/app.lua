@@ -97,6 +97,10 @@ function module.init(on_exit, on_message)
   module.notify = function(text)
     chansend(channel, message({ 'notify', text }))
   end
+
+  module.history = function(back, forward)
+    chansend(channel, message({ 'history', vim.json.encode({ back = back, forward = forward }) }))
+  end
 end
 
 module.stop = function()

@@ -60,14 +60,15 @@ addEventListener('DOMContentLoaded', () => {
   if (peek.ctx === 'webview') zoom.init();
 
   document.addEventListener('keydown', (event: KeyboardEvent) => {
-    if (
-      peek.ctx === 'webview' && event.key === 'w' &&
-      (peek.os === 'darwin' ? event.metaKey : event.ctrlKey)
-    ) {
+    const mac = peek.os === 'darwin';
+    if (peek.ctx === 'webview' && event.key === 'w' && (mac ? event.metaKey : event.ctrlKey)) {
       event.preventDefault();
       Reflect.get(window, '_close')();
       return;
     }
+    const nav: Record<string, () => void> = mac
+      ? { '[': back, ']': forward }
+      : { 'ArrowLeft': back, 'ArrowRight': forward };
     const ctrl: Record<string, () => void> = {
       '=': zoom.up.bind(zoom),
       '-': zoom.down.bind(zoom),
@@ -93,7 +94,8 @@ addEventListener('DOMContentLoaded', () => {
         window.scrollTo({ top: document.body.scrollHeight });
       },
     };
-    const action = event.ctrlKey && peek.ctx === 'webview' ? ctrl[event.key] : plain[event.key];
+    const action = ((mac ? event.metaKey : event.altKey) && nav[event.key]) ||
+      (event.ctrlKey && peek.ctx === 'webview' ? ctrl[event.key] : plain[event.key]);
     if (action) {
       event.preventDefault();
       action();
@@ -150,10 +152,31 @@ addEventListener('DOMContentLoaded', () => {
       case 'notify':
         showLabel(data.message, 3000);
         break;
+      case 'history':
+        backButton.disabled = !data.back;
+        forwardButton.disabled = !data.forward;
+        break;
       default:
         break;
     }
   };
+
+  const backButton = document.getElementById('peek-back') as HTMLButtonElement;
+  const forwardButton = document.getElementById('peek-forward') as HTMLButtonElement;
+  const back = () => socket.send(JSON.stringify({ action: 'back' }));
+  const forward = () => socket.send(JSON.stringify({ action: 'forward' }));
+
+  backButton.addEventListener('click', back);
+  forwardButton.addEventListener('click', forward);
+
+  // mouse side buttons
+  document.addEventListener('mouseup', (event: MouseEvent) => {
+    const action = ({ 3: back, 4: forward } as Record<number, () => void>)[event.button];
+    if (action) {
+      event.preventDefault();
+      action();
+    }
+  });
 
   markdownBody.addEventListener('click', (event) => {
     const href = (event.target as Element).closest('a[data-href]')?.getAttribute('data-href');
