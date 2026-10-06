@@ -203,8 +203,9 @@ addEventListener('DOMContentLoaded', () => {
 
   const backButton = document.getElementById('peek-back') as HTMLButtonElement;
   const forwardButton = document.getElementById('peek-forward') as HTMLButtonElement;
-  const back = () => socket.send(JSON.stringify({ action: 'back' }));
-  const forward = () => socket.send(JSON.stringify({ action: 'forward' }));
+  // line tells Neovim where to scroll when coming back to the file being left
+  const back = () => socket.send(JSON.stringify({ action: 'back', line: getScrollLine() }));
+  const forward = () => socket.send(JSON.stringify({ action: 'forward', line: getScrollLine() }));
 
   backButton.addEventListener('click', back);
   forwardButton.addEventListener('click', forward);
@@ -231,6 +232,7 @@ addEventListener('DOMContentLoaded', () => {
     socket.send(JSON.stringify({
       action: 'open',
       path: decodeURIComponent(href.replace(/[?#].*$/, '')),
+      line: getScrollLine(),
     }));
   });
 
@@ -317,7 +319,7 @@ addEventListener('DOMContentLoaded', () => {
     };
   })();
 
-  const onScroll = (() => {
+  const { onScroll, getScrollLine } = (() => {
     function getBlockOnLine(line: number) {
       return findLast(blocks, (block) => line >= Number(block[0].dataset.lineBegin));
     }
@@ -334,27 +336,46 @@ addEventListener('DOMContentLoaded', () => {
       return top + window.scrollY;
     }
 
-    return (data: { line: number }) => {
+    function measure([target, next]: HTMLElement[], lcount: number) {
+      const offsetBegin = getOffset(target);
+      const offsetEnd = next
+        ? getOffset(next)
+        : offsetBegin + target.getBoundingClientRect().height;
+
+      const lineBegin = Number(target.dataset.lineBegin);
+      const lineEnd = next ? Number(next.dataset.lineBegin) : lcount + 1;
+
+      return {
+        offsetBegin,
+        lineBegin,
+        pixPerLine: (offsetEnd - offsetBegin) / (lineEnd - lineBegin),
+      };
+    }
+
+    function onScroll(data: { line: number }) {
       scroll = data;
 
       if (!blocks || !blocks[0] || !source) return;
 
       const block = getBlockOnLine(data.line) || blocks[0];
-      const target = block[0];
-      const next = target ? block[1] : blocks[0][0];
-
-      const offsetBegin = target ? getOffset(target) : 0;
-      const offsetEnd = next
-        ? getOffset(next)
-        : offsetBegin + target.getBoundingClientRect().height;
-
-      const lineBegin = target ? Number(target.dataset.lineBegin) : 1;
-      const lineEnd = next ? Number(next.dataset.lineBegin) : source.lcount + 1;
-
-      const pixPerLine = (offsetEnd - offsetBegin) / (lineEnd - lineBegin);
+      const { offsetBegin, lineBegin, pixPerLine } = measure(block, source.lcount);
       const scrollPix = (data.line - lineBegin) * pixPerLine;
 
       window.scroll({ top: offsetBegin + scrollPix - window.innerHeight / 2 + pixPerLine / 2 });
-    };
+    }
+
+    // the inverse of onScroll: the source line at the center of the viewport
+    function getScrollLine() {
+      if (!blocks || !blocks[0] || !source) return;
+
+      const center = window.scrollY + window.innerHeight / 2;
+      const block = findLast(blocks, (block) => center >= getOffset(block[0])) || blocks[0];
+      const { offsetBegin, lineBegin, pixPerLine } = measure(block, source.lcount);
+      const line = lineBegin + (center - offsetBegin) / pixPerLine - 0.5;
+
+      return Number.isFinite(line) ? line : lineBegin;
+    }
+
+    return { onScroll, getScrollLine };
   })();
 });

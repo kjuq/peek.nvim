@@ -13,8 +13,12 @@ local module = {}
 
 local augroup, throttle_at, throttle_time, initialized, preview_bufnr
 
--- paths of previewed files, history[history_index] is the one being previewed
+-- previewed files, history[history_index] is the one being previewed.
+-- line is where the preview was scrolled when it left the file
 local history, history_index = {}, 0
+
+-- cursor position whose CursorMoved does not scroll the preview, see go()
+local restored_cursor
 
 local function get_buf_content(bufnr)
   return concat(nvim_buf_get_lines(bufnr, 0, -1, false), '\n'):gsub('%s*$', '')
@@ -27,12 +31,13 @@ end
 local open
 
 local function push_history(path)
-  if path ~= '' and history[history_index] ~= path then
+  local current = history[history_index]
+  if path ~= '' and not (current and current.path == path) then
     for i = #history, history_index + 1, -1 do
       history[i] = nil
     end
     history_index = history_index + 1
-    history[history_index] = path
+    history[history_index] = { path = path }
   end
   app.history(history_index > 1, history_index < #history)
 end
@@ -92,15 +97,22 @@ end
 
 local function go(offset)
   local index = history_index + offset
-  if not history[index] then
+  local entry = history[index]
+  if not entry then
     return
   end
 
+  local restore = entry.line
   -- move the index first so that open() does not push the path again
+  -- and scrolls to entry.line
   local prev_index = history_index
   history_index = index
-  if not edit(history[index]) then
+  if not edit(entry.path) then
     history_index = prev_index
+  elseif restore then
+    -- Neovim restores the cursor after BufEnter and then triggers CursorMoved,
+    -- which should not scroll the preview back to the cursor
+    restored_cursor = vim.api.nvim_win_get_cursor(vim.fn.bufwinid(preview_bufnr))
   end
 end
 
@@ -109,6 +121,8 @@ local function on_message(msg)
     return
   end
 
+  local entry = history[history_index]
+
   if msg.action == 'open' and type(msg.path) == 'string' then
     open_link(msg.path)
   elseif msg.action == 'back' then
@@ -116,11 +130,22 @@ local function on_message(msg)
   elseif msg.action == 'forward' then
     go(1)
   end
+
+  -- remember where the preview was in the file it has left
+  if entry and entry ~= history[history_index] and type(msg.line) == 'number' then
+    entry.line = msg.line
+  end
 end
 
 function open(bufnr)
+  local path = vim.api.nvim_buf_get_name(bufnr)
+  local entry = history[history_index]
+  -- go() has moved to the entry of this file
+  local restore = entry and entry.path == path and entry.line
+
   augroup = nvim_create_augroup('PeekActiveAugroup', { clear = true })
   preview_bufnr = bufnr
+  restored_cursor = nil
 
   app.init(function()
     augroup = nvim_del_augroup_by_id(augroup)
@@ -128,8 +153,11 @@ function open(bufnr)
   end, on_message)
   app.base(get_buf_dir(bufnr))
   app.show(get_buf_content(bufnr))
-  app.scroll(line('.'))
-  push_history(vim.api.nvim_buf_get_name(bufnr))
+  if restore then
+    entry.line = nil
+  end
+  app.scroll(restore or line('.'))
+  push_history(path)
 
   local show_throttled = throttle(function(content)
     if augroup then
@@ -161,7 +189,11 @@ function open(bufnr)
     group = augroup,
     buffer = bufnr,
     callback = function()
-      app.scroll(line('.'))
+      local cursor = vim.api.nvim_win_get_cursor(0)
+      if not vim.deep_equal(cursor, restored_cursor) then
+        restored_cursor = nil
+        app.scroll(cursor[1])
+      end
     end,
   })
 
