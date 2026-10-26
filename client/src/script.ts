@@ -220,6 +220,17 @@ addEventListener('DOMContentLoaded', () => {
   });
 
   markdownBody.addEventListener('click', (event) => {
+    const checkbox = (event.target as Element).closest('input.task-list-item-checkbox[data-line]');
+    if (checkbox instanceof HTMLInputElement) {
+      // the checkbox follows the buffer, which is rendered again after the change
+      event.preventDefault();
+      socket.send(JSON.stringify({
+        action: 'check',
+        line: Number(checkbox.dataset.line),
+        checked: checkbox.checked,
+      }));
+      return;
+    }
     const href = (event.target as Element).closest('a[data-href]')?.getAttribute('data-href');
     if (!href || href.startsWith('#')) return;
     if (/^https?:\/\//i.test(href)) {

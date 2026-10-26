@@ -29,7 +29,7 @@ const md = new MarkdownIt('default', {
   }),
 }).use(MarkdownItEmoji)
   .use(MarkdownItFootnote)
-  .use(MarkdownItTaskLists, { enabled: false, label: true })
+  .use(MarkdownItTaskLists, { enabled: true })
   .use(MarkdownItTexmath, {
     engine: Katex,
     delimiters: ['gitlab', 'dollars'],
@@ -133,9 +133,23 @@ md.renderer.rules.fence = (() => {
 export function render(markdown: string) {
   const tokens = md.parse(markdown, {});
 
-  tokens.forEach((token) => {
+  tokens.forEach((token, index) => {
     if (token.map && token.level === 0) {
       token.attrSet('data-line-begin', String(token.map[0] + 1));
+    }
+
+    // tell the checkbox which line to toggle in Neovim
+    const item = tokens[index - 2];
+    if (token.type === 'inline' && item?.type === 'list_item_open' && item.map) {
+      const checkbox = token.children?.find((child) =>
+        child.content.startsWith('<input class="task-list-item-checkbox"')
+      );
+      if (checkbox) {
+        checkbox.content = checkbox.content.replace(
+          '<input ',
+          `<input data-line="${item.map[0] + 1}" `,
+        );
+      }
     }
   });
 

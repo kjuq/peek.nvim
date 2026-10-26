@@ -116,6 +116,36 @@ local function go(offset)
   end
 end
 
+-- set the task list item on lnum to checked, as clicked in the preview
+local function check(lnum, checked)
+  local text = nvim_buf_get_lines(preview_bufnr, lnum - 1, lnum, false)[1]
+  if not text then
+    return
+  end
+
+  local mark = checked and 'x' or ' '
+  local new
+  for _, pattern in ipairs({ '^([%s>]*[-+*]%s+%[)[ xX](%])', '^([%s>]*%d+[.)]%s+%[)[ xX](%])' }) do
+    new = text:match(pattern) and text:gsub(pattern, '%1' .. mark .. '%2')
+    if new then
+      break
+    end
+  end
+
+  if not new then
+    return app.notify('Task list item not found on line ' .. lnum)
+  end
+
+  if not vim.bo[preview_bufnr].modifiable then
+    return app.notify('Buffer is not modifiable')
+  end
+
+  if new ~= text then
+    vim.api.nvim_buf_set_lines(preview_bufnr, lnum - 1, lnum, false, { new })
+  end
+  app.show(get_buf_content(preview_bufnr))
+end
+
 local function on_message(msg)
   if not preview_bufnr then
     return
@@ -123,7 +153,9 @@ local function on_message(msg)
 
   local entry = history[history_index]
 
-  if msg.action == 'open' and type(msg.path) == 'string' then
+  if msg.action == 'check' and type(msg.line) == 'number' then
+    check(msg.line, msg.checked == true)
+  elseif msg.action == 'open' and type(msg.path) == 'string' then
     open_link(msg.path)
   elseif msg.action == 'back' then
     go(-1)
